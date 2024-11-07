@@ -3,6 +3,7 @@
 :- discontiguous parent/2.
 :- discontiguous male/1.
 :- discontiguous female/1.
+:- discontiguous ancestor/2.
 :- discontiguous backliteral/2.
 :- discontiguous prolog_predicate/1.
 :- discontiguous start_hyp/1.
@@ -47,14 +48,18 @@ female(ann).
 female(pat).
 female(eve).
 
+ancestor(X, Y) :- parent(X, Y).
+ancestor(X, Y) :- parent(X, Z), ancestor(Z, Y).
+
 backliteral([atom(X), parent(X, Y)], [X, Y]).
-backliteral([atom(X), predecessor(X, Y)], [X, Y]).
+backliteral([atom(X), ancestor(X, Y)], [X, Y]).
 prolog_predicate(parent(_, _)).
+prolog_predicate(ancestor(_, _)).
 prolog_predicate(atom(_)).
 
 start_hyp([
-    [predecessor(A, B), [atom(A), parent(A, C)], [atom(C), predecessor(C, B)]] / [A, C, B],
-    [predecessor(D, E), [atom(D), parent(D, E)]] / [D, E]
+    [predecessor(X1, Y1), parent(X1, Y1)] / [X1, Y1],
+    [predecessor(X2, Y2), ancestor(X2, Y2)] / [X2, Y2]
 ]).
 
 prove(Goal, Hypo, Answer) :-
@@ -70,7 +75,7 @@ prove_goal([G1 | Gs], Hypo, D0, D) :-
     prove_goal(Gs, Hypo, D1, D).
 prove_goal(G, _, D, D) :-
     prolog_predicate(G),
-    (G = parent(X, Y) -> parent(X, Y) ; G = atom(X), atom(X)).
+    (G = parent(X, Y) -> parent(X, Y) ; G = ancestor(X, Y) -> ancestor(X, Y) ; G = atom(X), atom(X)).
 prove_goal(G, Hypo, D0, D) :-
     D0 > 0,
     D1 is D0 - 1,
@@ -79,7 +84,7 @@ prove_goal(G, Hypo, D0, D) :-
     G = Head,
     prove_goal(Body, Hypo, D1, D).
 
-max_depth_limit(20).
+max_depth_limit(30).
 
 induce(Hyp) :-
     max_depth_limit(Limit),
@@ -130,4 +135,4 @@ refine(Clause, Args, NewClause, NewArgs) :-
     append(Args, Vars, NewArgs).
 
 max_proof_length(10).
-max_clause_length(3).
+max_clause_length(4).
