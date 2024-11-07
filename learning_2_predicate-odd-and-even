@@ -1,35 +1,101 @@
+:- discontiguous ex/1.
+:- discontiguous nex/1.
+:- discontiguous backliteral/3.
+:- discontiguous term/3.
+:- discontiguous start_clause/1.
+
+ex(even([])).
+ex(even([a, b])).
+ex(even([a, b, c, d])).
+ex(odd([a])).
+ex(odd([a, b, c])).
+ex(odd([a, b, c, d, e])).
+
+nex(even([a])).
+nex(even([a, b, c])).
+nex(odd([])).
+nex(odd([a, b])).
+nex(odd([a, b, c, d])).
+
+term(list, [X | L], [X:item, L:list]).
+term(list, [], []).
+
+start_hyp([
+    [odd(L)] / [L:list],
+    [even(L)] / [L:list]
+]).
 
 backliteral(even(L), [L:list], []).
 backliteral(odd(L), [L:list], []).
 
+prove(Goal, Hypo, Answer) :-
+    max_proof_length(D),
+    prove_goal(Goal, Hypo, D, RestD),
+    (RestD >= 0 -> Answer = yes ; RestD < 0 -> Answer = maybe).
+prove(_, _, no).
 
-term(list, [X|L], [X:item, L:list]).
-term(list, [], []).
+prove_goal(_, _, D, D) :- D < 0, !.
+prove_goal([], _, D, D) :- !.
+prove_goal([G1 | Gs], Hypo, D0, D) :-
+    prove_goal(G1, Hypo, D0, D1),
+    prove_goal(Gs, Hypo, D1, D).
+prove_goal(G, Hypo, D0, D) :-
+    D0 > 0,
+    D1 is D0 - 1,
+    member(Clause / _Vars, Hypo),
+    copy_term(Clause, [Head | Body]),
+    G = Head,
+    prove_goal(Body, Hypo, D1, D).
 
+induce(Hyp) :-
+    iter_deep(Hyp, 0).
 
-prolog_predicate(fail).
+iter_deep(Hyp, MaxD) :-
+    start_hyp(Hyp0),
+    complete(Hyp0),
+    depth_first(Hyp0, Hyp, MaxD)
+    ;
+    NewMaxD is MaxD + 1,
+    iter_deep(Hyp, NewMaxD).
 
-start_clause([odd(L)]/[L:list]).
-start_clause([even(L)]/[L:list]).
+depth_first(Hyp, Hyp, _) :-
+    consistent(Hyp).
+depth_first(Hyp0, Hyp, MaxD0) :-
+    MaxD0 > 0,
+    MaxD1 is MaxD0 - 1,
+    refine_hyp(Hyp0, Hyp1),
+    complete(Hyp1),
+    depth_first(Hyp1, Hyp, MaxD1).
 
-ex(even([])).
-ex(even([a,b])).
-ex(odd([a])).
-ex(odd([b,c,d])).
-ex(odd([a,b,c,d,e])).
-ex(even([a,b,c,d])).
+complete(Hyp) :-
+    \+ (ex(E), \+ prove_goal(E, Hyp, 10, _)),
+    format("Hipótese completa para exemplos positivos: ~w~n", [Hyp]).
 
-nex(even([a])).
-nex(even([a,b,c])).
-nex(odd([])).
-nex(odd([a,b])).
-nex(odd([a,b,c,d])).
+consistent(Hyp) :-
+    \+ (nex(E), prove_goal(E, Hyp, 10, Answer), Answer == yes),
+    format("Hipótese consistente para exemplos negativos: ~w~n", [Hyp]).
 
-even([]).
-even([_,_|T]) :-
-    even(T).
+refine_hyp(Hyp0, Hyp) :-
+    append(Clauses1, [Clause0 / Vars0 | Clauses2], Hyp0),
+    append(Clauses1, [Clause / Vars | Clauses2], Hyp),
+    refine(Clause0, Vars0, Clause, Vars).
 
-odd([_]) :-
-    true.
-odd([_|T]) :-
-    even(T).
+refine(Clause, Args, Clause, NewArgs) :-
+    append(Args1, [A | Args2], Args),
+    member(A, Args2),
+    append(Args1, Args2, NewArgs).
+
+refine(Clause, Args, NewClause, NewArgs) :-
+    length(Clause, L),
+    max_clause_length(MaxL),
+    L < MaxL,
+    backliteral(Lit, Vars, _),
+    append(Clause, [Lit], NewClause),
+    append(Args, Vars, NewArgs).
+
+max_proof_length(10).
+max_clause_length(3).
+
+conc([], L, L).
+conc([X | T], L, [X | L1]) :-
+    conc(T, L, L1).
